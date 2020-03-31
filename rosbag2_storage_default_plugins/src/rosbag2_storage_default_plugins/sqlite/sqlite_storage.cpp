@@ -275,10 +275,6 @@ rosbag2_storage::BagMetadata SqliteStorage::get_metadata()
     std::string type = std::get<1>(result);
     std::string serialization_format = std::get<2>(result);
     std::string offered_qos_profiles = std::get<3>(result);
-
-    ROSBAG2_STORAGE_DEFAULT_PLUGINS_LOG_ERROR_STREAM(
-      "READING METADATA FOR TOPIC " << name << " qos " << offered_qos_profiles);
-
     metadata.topics_with_message_count.push_back(
       {
         {name, type, serialization_format, offered_qos_profiles},

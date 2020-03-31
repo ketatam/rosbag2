@@ -34,7 +34,6 @@
 
 #include "qos.hpp"
 #include "rosbag2_node.hpp"
-#include "qos.hpp"
 #include "replayable_message.hpp"
 
 namespace
