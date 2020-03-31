@@ -27,25 +27,9 @@
 
 #include "rosbag2_transport/logging.hpp"
 
-#include "enum.h"
 #include "generic_subscription.hpp"
 #include "qos.hpp"
 #include "rosbag2_node.hpp"
-#include "types.hpp"
-#include "qos.hpp"
-
-#ifdef _WIN32
-// This is necessary because of a bug in yaml-cpp's cmake
-#define YAML_CPP_DLL
-// This is necessary because yaml-cpp does not always use dllimport/dllexport consistently
-# pragma warning(push)
-# pragma warning(disable:4251)
-# pragma warning(disable:4275)
-#endif
-#include "yaml-cpp/yaml.h"
-#ifdef _WIN32
-# pragma warning(pop)
-#endif
 
 #ifdef _WIN32
 // This is necessary because of a bug in yaml-cpp's cmake
@@ -144,7 +128,7 @@ std::string serialized_offered_qos_profiles_for_topic(
   YAML::Node offered_qos_profiles;
   auto publishers_info = node->get_publishers_info_by_topic(topic_name);
   for (auto info : publishers_info) {
-    offered_qos_profiles.push_back(rosbag2_transport::Rosbag2QoS(info.qos_profile()));
+    offered_qos_profiles.push_back(Rosbag2QoS(info.qos_profile()));
   }
   return YAML::Dump(offered_qos_profiles);
 }
@@ -164,16 +148,15 @@ void Recorder::subscribe_topics(
   }
 }
 
-void Recorder::subscribe_topic(std::string name, std::string type, std::string serialization_format)
+void Recorder::subscribe_topic(const rosbag2_storage::TopicMetadata & topic_without_qos)
 {
-  rosbag2_storage::TopicMetadata topic {name, type, serialization_format, {}};
+  rosbag2_storage::TopicMetadata topic = topic_without_qos;
   rclcpp::QoS last_qos(10);
   bool first = true;
   bool all_qos_same = true;
   rclcpp::QoS subscription_qos(10);
 
   auto publishers_info = node_->get_publishers_info_by_topic(topic.name);
-  ROSBAG2_TRANSPORT_LOG_ERROR_STREAM("Endpoints for topic " << topic.name);
   YAML::Node offered_qos_profiles;
   for (auto info : publishers_info) {
     offered_qos_profiles.push_back(Rosbag2QoS(info.qos_profile()));
@@ -182,7 +165,6 @@ void Recorder::subscribe_topic(std::string name, std::string type, std::string s
     }
     first = false;
     last_qos = info.qos_profile();
-    ROSBAG2_TRANSPORT_LOG_INFO_STREAM("---" << std::endl << last_qos);
   }
 
   topic.offered_qos_profiles = YAML::Dump(offered_qos_profiles);

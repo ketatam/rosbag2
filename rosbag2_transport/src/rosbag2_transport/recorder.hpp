@@ -30,8 +30,6 @@
 
 #include "rosbag2_transport/record_options.hpp"
 
-#include "types.hpp"
-
 namespace rosbag2_cpp
 {
 class Writer;
