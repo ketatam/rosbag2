@@ -44,6 +44,8 @@
 # pragma warning(pop)
 #endif
 
+
+
 namespace rosbag2_transport
 {
 Recorder::Recorder(std::shared_ptr<rosbag2_cpp::Writer> writer, std::shared_ptr<Rosbag2Node> node)
@@ -86,6 +88,11 @@ void Recorder::topics_discovery(
   while (rclcpp::ok()) {
     auto topics_to_subscribe =
       get_requested_or_available_topics(requested_topics, include_hidden_topics);
+    for (auto topic : topics_to_subscribe) {
+      if (topic_warned_about_incompatibility_.count(topic.first)) {
+        continue;
+      }
+    }
     auto missing_topics = get_missing_topics(topics_to_subscribe);
     subscribe_topics(missing_topics);
 
@@ -132,6 +139,18 @@ std::string serialized_offered_qos_profiles_for_topic(
   }
   return YAML::Dump(offered_qos_profiles);
 }
+
+bool all_qos_same(const std::vector<rclcpp::TopicEndpointInfo> & values)
+{
+  return std::adjacent_find(
+    values.begin(),
+    values.end(),
+    // std::not_equal_to<>()
+    [](const rclcpp::TopicEndpointInfo & left, const rclcpp::TopicEndpointInfo & right) -> bool {
+      return left.qos_profile() == right.qos_profile();
+    }
+  ) == values.end();
+}
 }  // unnamed namespace
 
 void Recorder::subscribe_topics(
@@ -151,34 +170,24 @@ void Recorder::subscribe_topics(
 void Recorder::subscribe_topic(const rosbag2_storage::TopicMetadata & topic_without_qos)
 {
   rosbag2_storage::TopicMetadata topic = topic_without_qos;
-  rclcpp::QoS last_qos(10);
-  bool first = true;
-  bool all_qos_same = true;
-  rclcpp::QoS subscription_qos(10);
+  Rosbag2QoS subscription_qos;
 
   auto publishers_info = node_->get_publishers_info_by_topic(topic.name);
-  YAML::Node offered_qos_profiles;
-  for (auto info : publishers_info) {
-    offered_qos_profiles.push_back(Rosbag2QoS(info.qos_profile()));
-    if (!first) {
-      all_qos_same &= last_qos == info.qos_profile();
-    }
-    first = false;
-    last_qos = info.qos_profile();
-  }
-
-  topic.offered_qos_profiles = YAML::Dump(offered_qos_profiles);
-  if (all_qos_same) {
-    subscription_qos = last_qos;
-    ROSBAG2_TRANSPORT_LOG_INFO_STREAM(
-      "OK! All publishers for topic " << topic.name <<
-      " offering the same QoS profile - using it to subscribe.");
+  if (!publishers_info.empty() && all_qos_same(publishers_info)) {
+    subscription_qos = Rosbag2QoS(publishers_info[0].qos_profile());
   } else {
     ROSBAG2_TRANSPORT_LOG_WARN_STREAM(
       "Topic " << topic.name << " has publishers offering different QoS settings. "
       "Can't guess what QoS to request, falling back to default QoS profile."
     );
+    topic_warned_about_incompatibility_.insert(topic.name);
   }
+
+  YAML::Node offered_qos_profiles;
+  for (auto info : publishers_info) {
+    offered_qos_profiles.push_back(Rosbag2QoS(info.qos_profile()));
+  }
+  topic.offered_qos_profiles = YAML::Dump(offered_qos_profiles);
 
   // Need to create topic in writer before we are trying to create subscription. Since in
   // callback for subscription we are calling writer_->write(bag_message); and it could happened

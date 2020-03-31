@@ -76,6 +76,7 @@ private:
   std::shared_ptr<Rosbag2Node> node_;
   std::vector<std::shared_ptr<GenericSubscription>> subscriptions_;
   std::unordered_set<std::string> subscribed_topics_;
+  std::unordered_set<std::string> topic_warned_about_incompatibility_;
   std::string serialization_format_;
 };
 
