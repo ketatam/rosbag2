@@ -34,7 +34,43 @@
 
 #include "qos.hpp"
 #include "rosbag2_node.hpp"
+#include "qos.hpp"
 #include "replayable_message.hpp"
+
+namespace
+{
+rclcpp::QoS get_publisher_qos(const std::string & serialized_profiles)
+{
+  ROSBAG2_TRANSPORT_LOG_ERROR_STREAM("Parsing the serialized profiles " << serialized_profiles);
+  using namespace rosbag2_transport;
+  bool first = true;
+  bool all_same = true;
+  rclcpp::QoS previous(10);
+  auto node = YAML::Load(serialized_profiles);
+  ROSBAG2_TRANSPORT_LOG_ERROR_STREAM("gotanode");
+  auto profiles = node.as<std::vector<Rosbag2QoS> >();
+  ROSBAG2_TRANSPORT_LOG_ERROR_STREAM("as is ok");
+
+  for (auto current : profiles) {
+    // rclcpp::QoS current = YAML::Load(ser).as<Rosbag2QoS>();
+
+    ROSBAG2_TRANSPORT_LOG_INFO_STREAM("---" << std::endl << current);
+    if (!first) {
+      all_same &= current == previous;
+    }
+    previous = current;
+  }
+  if (all_same) {
+    return previous;
+  } else {
+    ROSBAG2_TRANSPORT_LOG_WARN_STREAM(
+      "Topic had publishers offering different QoS settings. "
+      "Can't guess what QoS to offer, falling back to default QoS profile."
+    );
+    return rclcpp::QoS(10);
+  }
+}
+}  // unnamed namespace
 
 namespace rosbag2_transport
 {
@@ -160,7 +196,8 @@ void Player::prepare_publishers()
     publishers_.insert(
       std::make_pair(
         topic.name, rosbag2_transport_->create_generic_publisher(
-          topic.name, topic.type, Rosbag2QoS{})));
+          topic.name, topic.type,
+          get_publisher_qos(topic.offered_qos_profiles))));
   }
 }
 

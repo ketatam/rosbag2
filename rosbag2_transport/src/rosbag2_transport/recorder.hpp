@@ -23,11 +23,14 @@
 #include <utility>
 #include <vector>
 
+#include "rclcpp/qos.hpp"
 #include "rosbag2_cpp/writer.hpp"
 
 #include "rosbag2_storage/topic_metadata.hpp"
 
 #include "rosbag2_transport/record_options.hpp"
+
+#include "types.hpp"
 
 namespace rosbag2_cpp
 {
@@ -67,7 +70,7 @@ private:
   void subscribe_topic(const rosbag2_storage::TopicMetadata & topic);
 
   std::shared_ptr<GenericSubscription> create_subscription(
-    const std::string & topic_name, const std::string & topic_type);
+    const std::string & topic_name, const std::string & topic_type, const rclcpp::QoS & qos);
 
   void record_messages() const;
 
