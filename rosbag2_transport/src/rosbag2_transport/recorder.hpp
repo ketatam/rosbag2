@@ -30,6 +30,8 @@
 
 #include "rosbag2_transport/record_options.hpp"
 
+#include "qos.hpp"
+
 namespace rosbag2_cpp
 {
 class Writer;
@@ -74,9 +76,13 @@ private:
 
   std::shared_ptr<rosbag2_cpp::Writer> writer_;
   std::shared_ptr<Rosbag2Node> node_;
-  std::vector<std::shared_ptr<GenericSubscription>> subscriptions_;
-  std::unordered_set<std::string> subscribed_topics_;
-  std::unordered_set<std::string> topic_warned_about_incompatibility_;
+  std::unordered_map<
+    std::string,
+    std::pair<
+      std::shared_ptr<GenericSubscription>,
+      Rosbag2QoS
+    >> subscriptions_;
+  std::unordered_set<std::string> topics_warned_about_incompatibility_;
   std::string serialization_format_;
 };
 

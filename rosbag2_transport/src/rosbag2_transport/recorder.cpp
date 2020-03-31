@@ -88,15 +88,33 @@ void Recorder::topics_discovery(
   while (rclcpp::ok()) {
     auto topics_to_subscribe =
       get_requested_or_available_topics(requested_topics, include_hidden_topics);
-    for (auto topic : topics_to_subscribe) {
-      if (topic_warned_about_incompatibility_.count(topic.first)) {
+    for (auto topic_and_type : topics_to_subscribe) {
+      auto topic_name = topic_and_type.first;
+      auto existing = subscriptions_.find(topic_name);
+      bool not_subscribed_yet = existing == subscriptions_.end();
+      if (not_subscribed_yet) {
         continue;
+      }
+      bool already_warned = topics_warned_about_incompatibility_.count(topic_name);
+      if (already_warned) {
+        continue;
+      }
+      auto publishers_info = node_->get_publishers_info_by_topic(topic_name);
+      for (auto info : publishers_info) {
+        if (info.qos_profile() != existing->second.second) {
+          ROSBAG2_TRANSPORT_LOG_WARN_STREAM(
+            "A new publisher for subscribed topic " << topic_name << " was found that is offering "
+            "a (possibly) incompatible QoS profile. Not changing subscription QoS. It is possible "
+            "you will not record messages from this new publisher."
+          );
+          topics_warned_about_incompatibility_.insert(topic_name);
+        }
       }
     }
     auto missing_topics = get_missing_topics(topics_to_subscribe);
     subscribe_topics(missing_topics);
 
-    if (!requested_topics.empty() && subscribed_topics_.size() == requested_topics.size()) {
+    if (!requested_topics.empty() && subscriptions_.size() == requested_topics.size()) {
       ROSBAG2_TRANSPORT_LOG_INFO("All requested topics are subscribed. Stopping discovery...");
       return;
     }
@@ -119,7 +137,7 @@ Recorder::get_missing_topics(const std::unordered_map<std::string, std::string> 
 {
   std::unordered_map<std::string, std::string> missing_topics;
   for (const auto & i : all_topics) {
-    if (subscribed_topics_.find(i.first) == subscribed_topics_.end()) {
+    if (subscriptions_.find(i.first) == subscriptions_.end()) {
       missing_topics.emplace(i.first, i.second);
     }
   }
@@ -180,7 +198,7 @@ void Recorder::subscribe_topic(const rosbag2_storage::TopicMetadata & topic_with
       "Topic " << topic.name << " has publishers offering different QoS settings. "
       "Can't guess what QoS to request, falling back to default QoS profile."
     );
-    topic_warned_about_incompatibility_.insert(topic.name);
+    topics_warned_about_incompatibility_.insert(topic.name);
   }
 
   YAML::Node offered_qos_profiles;
@@ -195,12 +213,11 @@ void Recorder::subscribe_topic(const rosbag2_storage::TopicMetadata & topic_with
   writer_->create_topic(topic);
   auto subscription = create_subscription(topic.name, topic.type, subscription_qos);
   if (subscription) {
-    subscribed_topics_.insert(topic.name);
-    subscriptions_.push_back(subscription);
+    subscriptions_.insert({topic.name, {subscription, subscription_qos}});
     ROSBAG2_TRANSPORT_LOG_INFO_STREAM("Subscribed to topic '" << topic.name << "'");
   } else {
     writer_->remove_topic(topic);
-    subscribed_topics_.erase(topic.name);
+    subscriptions_.erase(topic.name);
   }
 }
 
