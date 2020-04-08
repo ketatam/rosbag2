@@ -97,7 +97,12 @@ void Rosbag2Transport::play(
 
     auto transport_node = setup_node(play_options.node_prefix);
 
-    Player player(reader_, transport_node);
+    rosbag2_storage::MetadataIo metadata_io{};
+    rosbag2_storage::BagMetadata metadata{};
+    if (metadata_io.metadata_file_exists(storage_options.uri)) {
+      metadata = metadata_io.read_metadata(storage_options.uri);
+    }
+    Player player(reader_, transport_node, metadata);
     player.play(play_options);
   } catch (std::runtime_error & e) {
     ROSBAG2_TRANSPORT_LOG_ERROR("Failed to play: %s", e.what());

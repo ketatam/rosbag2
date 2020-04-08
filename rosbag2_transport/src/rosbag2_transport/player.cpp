@@ -43,9 +43,19 @@ const std::chrono::milliseconds
 Player::queue_read_wait_period_ = std::chrono::milliseconds(100);
 
 Player::Player(
-  std::shared_ptr<rosbag2_cpp::Reader> reader, std::shared_ptr<Rosbag2Node> rosbag2_transport)
-: reader_(std::move(reader)), rosbag2_transport_(rosbag2_transport)
-{}
+  std::shared_ptr<rosbag2_cpp::Reader> reader,
+  std::shared_ptr<Rosbag2Node> rosbag2_transport,
+  rosbag2_storage::BagMetadata metadata)
+: reader_(std::move(reader)), rosbag2_transport_(rosbag2_transport), metadata_(metadata)
+{
+  for (auto topic_information : metadata.topics_with_message_count) {
+    auto topic_metadata = topic_information.topic_metadata;
+    YAML::Node loaded_profiles = YAML::Load(topic_metadata.offered_qos_profiles);
+    ROSBAG2_TRANSPORT_LOG_WARN_STREAM("Loaded meta for " << topic_metadata.name << " with: " << topic_metadata.offered_qos_profiles);
+    recorded_qos_profiles_[topic_metadata.name] =
+      loaded_profiles.as<std::vector<Rosbag2QoS>>();
+  }
+}
 
 bool Player::is_storage_completely_loaded() const
 {

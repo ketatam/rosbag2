@@ -24,8 +24,11 @@
 
 #include "moodycamel/readerwriterqueue.h"
 
+#include "rosbag2_storage/bag_metadata.hpp"
+
 #include "rosbag2_transport/play_options.hpp"
 
+#include "qos.hpp"
 #include "replayable_message.hpp"
 
 using TimePoint = std::chrono::time_point<std::chrono::high_resolution_clock>;
@@ -46,7 +49,8 @@ class Player
 public:
   explicit Player(
     std::shared_ptr<rosbag2_cpp::Reader> reader,
-    std::shared_ptr<Rosbag2Node> rosbag2_transport);
+    std::shared_ptr<Rosbag2Node> rosbag2_transport,
+    rosbag2_storage::BagMetadata metadata);
 
   void play(const PlayOptions & options);
 
@@ -68,6 +72,8 @@ private:
   mutable std::future<void> storage_loading_future_;
   std::shared_ptr<Rosbag2Node> rosbag2_transport_;
   std::unordered_map<std::string, std::shared_ptr<GenericPublisher>> publishers_;
+  std::unordered_map<std::string, std::vector<Rosbag2QoS>> recorded_qos_profiles_;
+  rosbag2_storage::BagMetadata metadata_;
 };
 
 }  // namespace rosbag2_transport
