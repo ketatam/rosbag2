@@ -50,10 +50,8 @@ Player::Player(
 {
   for (auto topic_information : metadata.topics_with_message_count) {
     auto topic_metadata = topic_information.topic_metadata;
-    YAML::Node loaded_profiles = YAML::Load(topic_metadata.offered_qos_profiles);
-    ROSBAG2_TRANSPORT_LOG_WARN_STREAM("Loaded meta for " << topic_metadata.name << " with: " << topic_metadata.offered_qos_profiles);
-    recorded_qos_profiles_[topic_metadata.name] =
-      loaded_profiles.as<std::vector<Rosbag2QoS>>();
+    auto loaded_profiles = YAML::Load(topic_metadata.offered_qos_profiles);
+    recorded_qos_profiles_[topic_metadata.name] = loaded_profiles.as<std::vector<Rosbag2QoS>>();
   }
 }
 
@@ -163,6 +161,11 @@ void Player::play_messages_until_queue_empty(const PlayOptions & options)
   }
 }
 
+rclcpp::QoS Player::qos_for_topic(const std::string & topic_name) const
+{
+  return Rosbag2QoS::adapt_offer_to_recorded_offers(recorded_qos_profiles_.at(topic_name));
+}
+
 void Player::prepare_publishers()
 {
   auto topics = reader_->get_all_topics_and_types();
@@ -170,7 +173,7 @@ void Player::prepare_publishers()
     publishers_.insert(
       std::make_pair(
         topic.name, rosbag2_transport_->create_generic_publisher(
-          topic.name, topic.type, Rosbag2QoS{})));
+          topic.name, topic.type, qos_for_topic(topic.name))));
   }
 }
 
